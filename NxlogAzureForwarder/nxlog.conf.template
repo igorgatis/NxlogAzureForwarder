@@ -1,0 +1,58 @@
+define ROOT %InstallPath%
+
+Moduledir %ROOT%\modules
+CacheDir  %ROOT%\data
+Pidfile   %ROOT%\data\nxlog.pid
+SpoolDir  %ROOT%\data
+LogFile   %ROOT%\data\nxlog.log
+SuppressRepeatingLogs TRUE
+
+<Extension json>
+   Module xm_json
+</Extension>
+
+<Input applogs>
+    Module im_tcp
+    Host localhost
+    Port 514
+    Exec parse_json();
+</Input>
+
+<Input winlogs>
+    Module im_msvistalog
+    Query \
+	<QueryList> \
+		<Query Id='0'> \
+			<Select Path='Application'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
+			<Select Path='Security'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
+			<Select Path='System'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
+		</Query> \
+	</QueryList>
+    Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
+</Input>
+
+<Input nxlogs>
+    Module im_internal
+    Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
+</Input>
+
+<Processor rewrite>
+    Module pm_null
+	Exec $SubscriptionId = '%SubscriptionId%';
+    Exec $DeploymentId = '%DeploymentId%';
+	Exec $RoleName = '%RoleName%';
+	Exec $RoleInstance = '%RoleInstance%';
+</Processor>
+
+<Output output>
+    Module om_exec
+	Command %ROOT%\NxlogAzureForwarder.Merged.exe
+	Arg --stop_nxlog
+	Arg --table_name='NxlogForwardedLogs'
+	Arg --connection_string='%ConnectionString%'
+	Exec to_json();
+</Output>
+
+<Route defaultroute>
+    Path applogs, winlogs, nxlogs => rewrite => output
+</Route>
