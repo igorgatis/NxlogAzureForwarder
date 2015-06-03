@@ -5,6 +5,7 @@ CacheDir  %ROOT%\data
 Pidfile   %ROOT%\data\nxlog.pid
 SpoolDir  %ROOT%\data
 LogFile   %ROOT%\data\nxlog.log
+LogLevel  WARNING
 SuppressRepeatingLogs TRUE
 
 <Extension json>
@@ -20,39 +21,30 @@ SuppressRepeatingLogs TRUE
 
 <Input winlogs>
     Module im_msvistalog
-    Query \
-	<QueryList> \
-		<Query Id='0'> \
-			<Select Path='Application'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
-			<Select Path='Security'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
-			<Select Path='System'>*[System[(Level=1  or Level=2 or Level=3)]]</Select> \
-		</Query> \
-	</QueryList>
+    Query %WindowsEventQuery%
     Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
 
 <Input nxlogs>
     Module im_internal
+    Exec if $SeverityValue <= 2 drop();
     Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
 
-<Processor rewrite>
-    Module pm_null
-	Exec $SubscriptionId = '%SubscriptionId%';
-    Exec $DeploymentId = '%DeploymentId%';
-	Exec $RoleName = '%RoleName%';
-	Exec $RoleInstance = '%RoleInstance%';
-</Processor>
-
 <Output output>
-    Module om_exec
-	Command %ROOT%\NxlogAzureForwarder.Merged.exe
-	Arg --stop_nxlog
-	Arg --table_name='NxlogForwardedLogs'
-	Arg --connection_string='%ConnectionString%'
-	Exec to_json();
+    Module om_http
+    Url http://localhost:8514/upload
+    Exec \
+        $DeploymentId = '%DeploymentId%'; if $DeploymentId =~ /^%\w+%$/ delete($DeploymentId); \
+        $RoleName     = '%RoleName%';     if $RoleName     =~ /^%\w+%$/ delete($RoleName); \
+        $RoleInstance = '%RoleInstance%'; if $RoleInstance =~ /^%\w+%$/ delete($RoleInstance); \
+        $FaultDomain  = '%FaultDomain%';  if $FaultDomain  =~ /^%\w+%$/ delete($FaultDomain); \
+        $UpdateDomain = '%UpdateDomain%'; if $UpdateDomain =~ /^%\w+%$/ delete($UpdateDomain);
+    Exec to_json();
 </Output>
 
 <Route defaultroute>
-    Path applogs, winlogs, nxlogs => rewrite => output
+    Path applogs, winlogs, nxlogs => output
 </Route>
+
+%NxlogConfigExtension%

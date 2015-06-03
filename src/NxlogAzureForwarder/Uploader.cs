@@ -8,69 +8,57 @@ namespace NxlogAzureForwarder
 {
     internal class Uploader
     {
-        public Options Options { get; set; }
+        private const int kNumberOfAttempts = 3;
 
-        private LogParser parser_;
-        private CloudTable table_;
-        private volatile bool end_;
+        private string _connectionString;
+        private string _tableName;
 
-        public Uploader()
+        private volatile bool _end;
+        private ManualResetEvent _endEvent;
+        private CloudTable _table;
+
+        public Uploader(string connectionString, string tableName)
         {
-            parser_ = new LogParser();
+            _endEvent = new ManualResetEvent(false);
+            _connectionString = connectionString;
+            _tableName = tableName;
         }
 
         private void ConnectIfNeeded()
         {
-            if (table_ != null) return;
-            var storageAccount = CloudStorageAccount.Parse(Options.ConnectionString);
+            if (_table != null) return;
+            var storageAccount = CloudStorageAccount.Parse(_connectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
             tableClient.DefaultRequestOptions.PayloadFormat = TablePayloadFormat.JsonNoMetadata;
-            table_ = tableClient.GetTableReference(Options.TableName);
-            table_.CreateIfNotExists();
+            _table = tableClient.GetTableReference(_tableName);
+            _table.CreateIfNotExists();
         }
 
-        private void Send(LogEntity entity)
+        public bool Upload(LogEntity entity)
         {
-            for (int i = 0; i < 3 && !end_; ++i)
+            var insert = TableOperation.InsertOrReplace(entity);
+            for (int i = 0; !_end && i < kNumberOfAttempts; ++i)
             {
                 try
                 {
                     ConnectIfNeeded();
-                    table_.Execute(TableOperation.InsertOrReplace(entity));
-                    return;
+                    _table.Execute(insert);
+                    return true;
                 }
                 catch (Exception e)
                 {
-                    Trace.TraceError(e.Message ?? e.GetType().Name);
-                    table_ = null;
-                    Thread.Sleep(1000);
-                }
-            }
-        }
-
-        public void Run()
-        {
-            while (!end_)
-            {
-                try
-                {
-                    string line;
-                    while (!end_ && (line = Console.ReadLine()) != null && !end_)
-                    {
-                        var entity = parser_.Parse(DateTime.UtcNow, Options.Hostname, line);
-                        Send(entity);
-                    }
-                }
-                catch (Exception e)
-                {
+                    _table = null;
                     Trace.TraceError(e.ToString());
+                    _endEvent.WaitOne(TimeSpan.FromSeconds(1));
                 }
             }
+            return false;
         }
 
         public void Stop()
         {
-            end_ = true;
+            _end = true;
+            _endEvent.Set();
         }
     }
 }

@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("AzureUploader")]
+[assembly: AssemblyTitle("NxlogAzureForwarder")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("AzureUploader")]
+[assembly: AssemblyProduct("NxlogAzureForwarder")]
 [assembly: AssemblyCopyright("Copyright ©  2015")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("407c699b-4fda-4f6c-a956-7e280f41dc6a")]
+[assembly: Guid("e440038a-5562-4ae0-8bee-8d21c8b8041a")]
 
 // Version information for an assembly consists of the following four values:
 //

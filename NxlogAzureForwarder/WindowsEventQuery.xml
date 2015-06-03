@@ -1,0 +1,18 @@
+<QueryList>
+    <Query Id='0'>
+        <Select Path='Application'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='Security'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='System'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='HardwareEvents'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='Internet Explorer'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='Key Management Service'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='Windows PowerShell'>*[System[(Level=1  or Level=2 or Level=3)]]</Select>
+        <Select Path='Microsoft-WindowsAzure-Diagnostics/Bootstrapper'>*</Select>
+        <Select Path='Microsoft-WindowsAzure-Diagnostics/GuestAgent'>*</Select>
+        <Select Path='Microsoft-WindowsAzure-Diagnostics/Heartbeat'>*</Select>
+        <Select Path='Microsoft-WindowsAzure-Diagnostics/Runtime'>*</Select>
+        <Select Path='Microsoft-WindowsAzure-Status/GuestAgent'>*</Select>
+        <Select Path='Microsoft-WindowsAzure-Status/Plugins'>*</Select>
+        <Select Path='Windows Azure'>*</Select>
+    </Query>
+</QueryList>
