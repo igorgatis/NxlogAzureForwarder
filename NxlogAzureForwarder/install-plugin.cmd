@@ -3,4 +3,4 @@ REM Needed redirect to powershell command line because VS checks for existence o
 set ROOTDIR=%~dp0
 set LOGFILE=%ROOTDIR%\install-log.txt
 PowerShell.exe -ExecutionPolicy UnRestricted -File %ROOTDIR%\install-plugin.ps1 > %LOGFILE% 2>&1
-popd
+REM exit /b 0

@@ -15,21 +15,28 @@ Function Quote($path) {
 Write-Host "Setting environment variables."
 $env:InstallPath = "${Env:ProgramFiles(x86)}\nxlog"
 $env:WindowsEventQuery = $(Get-Content ($PSScriptRoot + "\WindowsEventQuery.xml")) -Join ""
+
+Write-Host "Stopping nxlog..."
 try {
-  $env:NxlogConfigExtension = $(Get-Content $env:NxlogConfigExtensionFile) -Join ""
-} catch {
-  $env:NxlogConfigExtension = "# set NxlogConfigExtensionFile environment variable to append its content here."
-}
+  Stop-Service nxlog
+} catch {}
 
 Write-Host "Stopping NxlogAzureForwarder..."
 try {
   Stop-Service NxlogAzureForwarder
 } catch {}
 
-Write-Host "Stopping nxlog..."
-try {
-  Stop-Service nxlog
-} catch {}
+Write-Host "Installing nxlog..."
+Start-Process `
+   -File ($PSScriptRoot + "\nxlog-ce-2.9.1347.msi") `
+   -Arg "/quiet /norestart" `
+   -Wait | Wait-Process
+
+FillTemplate ($PSScriptRoot + "\nxlog.conf.template") ($env:InstallPath + "\conf\nxlog.conf")
+
+Start-Process -File "sc" `
+   -Arg "failure nxlog reset= 0 actions= restart/10000" `
+   -NoNewWindow -Wait -PassThru | Wait-Process
 
 Write-Host "Installing NxlogAzureForwarder..."
 $forwarderExecSource = ($PSScriptRoot + "\NxlogAzureForwarder.exe")
@@ -47,23 +54,11 @@ Start-Process -File "sc" `
    -Arg "failure NxlogAzureForwarder reset= 0 actions= restart/10000" `
    -NoNewWindow -Wait | Wait-Process
 
-Write-Host "Installing nxlog..."
-Start-Process `
-   -File ($PSScriptRoot + "\nxlog-ce-2.9.1347.msi") `
-   -Arg "/quiet /norestart" `
-   -Wait | Wait-Process
-
-FillTemplate ($PSScriptRoot + "\nxlog.conf.template") ($env:InstallPath + "\conf\nxlog.conf")
-
-Start-Process -File "sc" `
-   -Arg "failure nxlog reset= 0 actions= restart/10000" `
-   -NoNewWindow -Wait -PassThru | Wait-Process
+Write-Host "Restarting NxlogAzureForwarder..."
+Restart-Service NxlogAzureForwarder
 
 Write-Host "Restarting  nxlog..."
 Restart-Service nxlog
-
-Write-Host "Restarting NxlogAzureForwarder..."
-Restart-Service NxlogAzureForwarder
 
 # TODO(gatis): verify data flows to table storage.
 

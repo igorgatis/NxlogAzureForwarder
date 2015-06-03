@@ -3,7 +3,8 @@
   <Startup>
     <Task commandLine="install-plugin.cmd" executionContext="elevated" taskType="simple">
       <Environment>
-        <Variable name="ConnectionString">
+        <Variable name="AzureTableName" value="NxlogForwardedLogs" />
+        <Variable name="AzureStorageConnectionString">
           <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/ConfigurationSettings/ConfigurationSetting[@name='Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString']/@value" />
         </Variable>
         <Variable name="DeploymentId">
