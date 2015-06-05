@@ -11,6 +11,7 @@ namespace NxlogAzureForwarder
     {
         private const string kConnectionStringKey = "AzureStorageConnectionString";
         private const string kTableNameKey = "AzureTableName";
+        private const string kIncludeExtraColumns = "IncludeExtraColumns";
 
         private HttpServer server_;
 
@@ -21,19 +22,27 @@ namespace NxlogAzureForwarder
 
         protected override void OnStart(string[] args)
         {
+            var appSettings = ConfigurationManager.AppSettings;
             string connectionString = null;
             string tableName = null;
             try
             {
-                connectionString = ConfigurationManager.AppSettings[kConnectionStringKey];
-                tableName = ConfigurationManager.AppSettings[kTableNameKey];
+                connectionString = appSettings[kConnectionStringKey];
+                tableName = appSettings[kTableNameKey];
 
                 // Try parsing connection string.
                 CloudStorageAccount.Parse(connectionString);
 
+                var parser = new LogParser();
+                try
+                {
+                    parser.IncludeExtraColumns = Boolean.Parse(appSettings[kIncludeExtraColumns]);
+                }
+                catch { }
+
                 server_ = new HttpServer(
                     Dns.GetHostName(),
-                    new LogParser(),
+                    parser,
                     new Uploader(connectionString, tableName));
                 server_.Start();
             }

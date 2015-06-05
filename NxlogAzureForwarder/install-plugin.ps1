@@ -2,7 +2,6 @@
 $ErrorActionPreference = "Stop"
 
 Function FillTemplate($template, $file) {
-  Write-Host $template $file
   Get-Content $template | ForEach-Object {
     $([System.Environment]::ExpandEnvironmentVariables($_))
   } | Set-Content $file
@@ -42,7 +41,7 @@ Write-Host "Installing NxlogAzureForwarder..."
 $forwarderExecSource = ($PSScriptRoot + "\NxlogAzureForwarder.exe")
 $forwarderExecDestin = ($env:InstallPath + "\NxlogAzureForwarder.exe")
 Copy-Item $forwarderExecSource $forwarderExecDestin
-FillTemplate ($forwarderExecSource + ".config") ($forwarderExecDestin  + ".config")
+FillTemplate ($forwarderExecSource + ".config") ($forwarderExecDestin + ".config")
 
 $DotNetPath = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory())
 Start-Process `

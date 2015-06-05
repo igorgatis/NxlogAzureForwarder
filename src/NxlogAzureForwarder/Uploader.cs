@@ -2,7 +2,9 @@
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Diagnostics;
+using System.Text;
 using System.Threading;
+using System.Xml;
 
 namespace NxlogAzureForwarder
 {
@@ -34,23 +36,22 @@ namespace NxlogAzureForwarder
             _table.CreateIfNotExists();
         }
 
-        public bool Upload(LogEntity entity)
+        public bool Upload(ITableEntity entity)
         {
-            var insert = TableOperation.InsertOrReplace(entity);
             for (int i = 0; !_end && i < kNumberOfAttempts; ++i)
             {
                 try
                 {
                     ConnectIfNeeded();
-                    _table.Execute(insert);
+                    _table.Execute(TableOperation.InsertOrReplace(entity));
                     return true;
                 }
                 catch (Exception e)
                 {
-                    _table = null;
-                    Trace.TraceError(e.ToString());
-                    _endEvent.WaitOne(TimeSpan.FromSeconds(1));
+                    ReporException(e);
                 }
+                _table = null;
+                _endEvent.WaitOne(TimeSpan.FromSeconds(1));
             }
             return false;
         }
@@ -59,6 +60,25 @@ namespace NxlogAzureForwarder
         {
             _end = true;
             _endEvent.Set();
+        }
+
+        private void ReporException(Exception exception)
+        {
+            var buffer = new StringBuilder();
+            try
+            {
+                var se = exception as StorageException;
+                if (se != null)
+                {
+                    se.RequestInformation.WriteXml(XmlTextWriter.Create(buffer));
+                }
+            }
+            catch { }
+            if (buffer.Length == 0)
+            {
+                buffer.Append(exception);
+            }
+            Trace.TraceError(buffer.ToString());
         }
     }
 }
