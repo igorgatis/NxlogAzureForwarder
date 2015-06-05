@@ -10,14 +10,15 @@ It can be installed in two ways:
 Make plugin available to VS by copying `AzurePlugin\NxlogAzureForwarder` to `C:\Program Files\Microsoft SDKs\Azure\.NET SDK\v2.6\bin\plugins\NxlogAzureForwarder`.
 
 Then add an `Import` to your `ServiceDefinition.csdef` file:
-
-	<ServiceDefinition>
-	  <WorkerRole>
-		<Imports>
-		  <Import moduleName="NxlogAzureForwarder" />
-		</Imports>
-	  </WorkerRole>
-	</ServiceDefinition>
+```xml
+   <ServiceDefinition>
+      <WorkerRole>
+          <Imports>
+             <Import moduleName="NxlogAzureForwarder" />
+          </Imports>
+      </WorkerRole>
+   </ServiceDefinition>
+```
 
 NxlogAzureForwarder plugin will use storage account you provide in `Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString`. Logs are pushed to `NxlogForwardedLogs` Azure Table Storage.
 
