@@ -22,7 +22,7 @@ namespace NxlogAzureForwarder
 
             public string Hostname { get; set; }
 
-            public string SourceName { get; set; }
+            public string SourceModuleName { get; set; }
             public string Severity { get; set; }
             public string Message { get; set; }
         }
@@ -59,20 +59,13 @@ namespace NxlogAzureForwarder
             {
                 var dict = new Dictionary<string, string>()
                 {
-                    {"DeploymentId", record.DeploymentId},
-                    {"RoleName", record.RoleName},
-                    {"RoleInstance", record.RoleInstance},
-                    {"Hostname", record.Hostname},
-                    {"SourceName", record.SourceName},
+                    {"SourceModuleName", record.SourceModuleName},
                     {"Severity", record.Severity},
                     {"Message", record.Message},
                 };
                 foreach (var pair in dict)
                 {
-                    if (!string.IsNullOrWhiteSpace(pair.Value))
-                    {
-                        entity[pair.Key] = EntityProperty.GeneratePropertyForString(pair.Value);
-                    }
+                    entity[pair.Key] = EntityProperty.GeneratePropertyForString(pair.Value ?? "");
                 }
             }
             entity["RawData"] = EntityProperty.GeneratePropertyForString(text);
