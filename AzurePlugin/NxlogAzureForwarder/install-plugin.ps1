@@ -41,7 +41,20 @@ Write-Host "Installing NxlogAzureForwarder..."
 $forwarderExecSource = ($PSScriptRoot + "\NxlogAzureForwarder.exe")
 $forwarderExecDestin = ($env:InstallPath + "\NxlogAzureForwarder.exe")
 Copy-Item $forwarderExecSource $forwarderExecDestin
-FillTemplate ($forwarderExecSource + ".config") ($forwarderExecDestin + ".config")
+$appConfig = (Get-Content ($forwarderExecSource + ".config")) -As [Xml]
+$appConfig.configuration.appSettings.add | foreach {
+  try { $_.Value = [environment]::GetEnvironmentVariable($_.Key) } catch {}
+}
+$xmlOut = New-Object System.Xml.XmlTextWriter(($forwarderExecDestin + ".config"), [System.Text.Encoding]::UTF8)
+$xmlOut.Formatting = [System.Xml.Formatting]::Indented
+$appConfig.WriteContentTo($xmlOut)
+$xmlOut.Close()
+
+try {
+Start-Process -File "sc" `
+   -Arg "delete NxlogAzureForwarder" `
+   -NoNewWindow -Wait | Wait-Process
+} catch {}
 
 $DotNetPath = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory())
 Start-Process `

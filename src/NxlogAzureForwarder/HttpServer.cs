@@ -23,11 +23,11 @@ namespace NxlogAzureForwarder
         private Uploader _uploader;
         private HttpListener _listener;
 
-        public HttpServer(string hostname, LogParser parser, Uploader uploader)
+        public HttpServer(string hostname, Uploader uploader)
         {
             _hostname = hostname;
             _statistics = new Statistics();
-            _parser = parser;
+            _parser = new LogParser();
             _uploader = uploader;
             _listener = new HttpListener();
             _listener.Prefixes.Add("http://localhost:8514/");
@@ -36,7 +36,6 @@ namespace NxlogAzureForwarder
 
         public void Stop()
         {
-            _uploader.Stop();
             _listener.Stop();
             _listener.Close();
         }

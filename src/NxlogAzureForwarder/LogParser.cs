@@ -1,15 +1,21 @@
-﻿using Microsoft.WindowsAzure.Storage.Table;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace NxlogAzureForwarder
 {
+    internal class LogRecord
+    {
+        public DateTime Timestamp { get; set; }
+        public string Origin { get; set; }
+        public string RawData { get; set; }
+        public Dictionary<string, string> ParsedProperties { get; set; }
+    }
+
     internal class LogParser
     {
         private readonly static DateTime kEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        private const int kTickResolution = 100000000;
 
         private class JsonLine
         {
@@ -23,13 +29,14 @@ namespace NxlogAzureForwarder
             public string Hostname { get; set; }
 
             public string SourceModuleName { get; set; }
+            public string SourceName { get; set; }
             public string Severity { get; set; }
             public string Message { get; set; }
         }
 
         public bool IncludeExtraColumns { get; set; }
 
-        public ITableEntity Parse(DateTime receiveTime, string endpoint, string text)
+        public LogRecord Parse(DateTime receiveTime, string endpoint, string text)
         {
             text = text ?? "";
             JsonLine record;
@@ -44,32 +51,19 @@ namespace NxlogAzureForwarder
             var time = ParseTimestamp(record, receiveTime);
             var source = ExtractSource(record, endpoint);
 
-            var mostSigTime = string.Format("{0:D19}", kTickResolution * (time.Ticks / kTickResolution));
-            var leastSigTime = string.Format("{0:D19}", time.Ticks % kTickResolution);
-
-            var hash = text.GetHashCode();
-            var row = string.Join("___", source, leastSigTime, hash.ToString("x8"));
-
-            var entity = new DynamicTableEntity
+            return new LogRecord
             {
-                PartitionKey = mostSigTime,
-                RowKey = row,
-            };
-            if (IncludeExtraColumns)
-            {
-                var dict = new Dictionary<string, string>()
+                Timestamp = ParseTimestamp(record, receiveTime),
+                Origin = ExtractSource(record, endpoint),
+                RawData = text,
+                ParsedProperties = new Dictionary<string, string>()
                 {
                     {"SourceModuleName", record.SourceModuleName},
+                    {"SourceName", record.SourceName},
                     {"Severity", record.Severity},
                     {"Message", record.Message},
-                };
-                foreach (var pair in dict)
-                {
-                    entity[pair.Key] = EntityProperty.GeneratePropertyForString(pair.Value ?? "");
-                }
-            }
-            entity["RawData"] = EntityProperty.GeneratePropertyForString(text);
-            return entity;
+                },
+            };
         }
 
         private DateTime ParseTimestamp(JsonLine record, DateTime defaultValue)

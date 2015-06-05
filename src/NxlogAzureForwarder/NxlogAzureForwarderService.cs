@@ -1,4 +1,5 @@
 ﻿using Microsoft.WindowsAzure.Storage;
+using Newtonsoft.Json;
 using System;
 using System.Configuration;
 using System.Diagnostics;
@@ -10,10 +11,12 @@ namespace NxlogAzureForwarder
     public partial class NxlogAzureForwarderService : ServiceBase
     {
         private const string kConnectionStringKey = "AzureStorageConnectionString";
-        private const string kTableNameKey = "AzureTableName";
-        private const string kIncludeExtraColumns = "IncludeExtraColumns";
+        private const string kAzureTableNameKey = "AzureTableName";
+        private const string kIncludeExtraColumnsKey = "IncludeExtraColumns";
+        private const string kAzureQueueNameKey = "AzureQueueName";
+        private const string kFatQueueMessageKey = "FatQueueMessage";
 
-        private HttpServer server_;
+        private HttpServer _server;
 
         public NxlogAzureForwarderService()
         {
@@ -22,36 +25,31 @@ namespace NxlogAzureForwarder
 
         protected override void OnStart(string[] args)
         {
-            var appSettings = ConfigurationManager.AppSettings;
-            string connectionString = null;
-            string tableName = null;
             try
             {
-                connectionString = appSettings[kConnectionStringKey];
-                tableName = appSettings[kTableNameKey];
-
-                // Try parsing connection string.
-                CloudStorageAccount.Parse(connectionString);
-
-                var parser = new LogParser();
-                try
+                var appSettings = ConfigurationManager.AppSettings;
+                var account = CloudStorageAccount.Parse(appSettings[kConnectionStringKey]);
+                var options = new Uploader.Options
                 {
-                    parser.IncludeExtraColumns = Boolean.Parse(appSettings[kIncludeExtraColumns]);
-                }
-                catch { }
+                    TableName = appSettings[kAzureTableNameKey],
+                    IncludeExtraColumns = bool.Parse(appSettings[kIncludeExtraColumnsKey]),
+                    QueueName = appSettings[kAzureQueueNameKey],
+                    FatQueueMessage = bool.Parse(appSettings[kFatQueueMessageKey]),
+                };
 
-                server_ = new HttpServer(
-                    Dns.GetHostName(),
-                    parser,
-                    new Uploader(connectionString, tableName));
-                server_.Start();
+                Trace.TraceInformation(JsonConvert.SerializeObject(options));
+                if (string.IsNullOrEmpty(options.TableName) &&
+                    string.IsNullOrEmpty(options.QueueName))
+                {
+                    throw new Exception("No output specified.");
+                }
+
+                _server = new HttpServer(Dns.GetHostName(), new Uploader(account, options));
+                _server.Start();
             }
             catch (Exception e)
             {
                 Trace.TraceError(e.ToString());
-                Trace.TraceError(string.Format("{0}: {1}{2}{3}: {4}...",
-                    kTableNameKey, tableName, Environment.NewLine, kConnectionStringKey,
-                    connectionString.Substring(0, Math.Min(60, connectionString.Length))));
                 Stop();
             }
         }
@@ -60,7 +58,7 @@ namespace NxlogAzureForwarder
         {
             try
             {
-                if (server_ != null) server_.Stop();
+                if (_server != null) _server.Stop();
             }
             catch (Exception e)
             {
