@@ -3,31 +3,24 @@ using Microsoft.WindowsAzure.Storage.Queue;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace NxlogAzureForwarder
 {
     internal class Uploader
     {
         private const int kMaxMessageLength = 60 * 1024;
-        private const int kTickResolution = 100000000;
 
         public class Options
         {
-            public string TableName { get; set; }
-            public bool IncludeExtraColumns { get; set; }
-
             public string QueueName { get; set; }
-            public bool FatQueueMessage { get; set; }
-        }
-
-        private class LogMessage
-        {
+            public string TableName { get; set; }
             public string PartitionKey { get; set; }
             public string RowKey { get; set; }
-            public DateTime Timestamp { get; set; }
-            public string Origin { get; set; }
-            public string RawData { get; set; }
+            public HashSet<string> AditionalColumns { get; set; }
         }
 
         private CloudStorageAccount _account;
@@ -57,51 +50,43 @@ namespace NxlogAzureForwarder
             }
         }
 
-        private CloudQueueMessage Serialize(LogMessage message)
+        private CloudQueueMessage Serialize(LogRecord message)
         {
-            var text = JsonConvert.SerializeObject(message);
-            if (text.Length > kMaxMessageLength && message.RawData != null)
+            var lean = new LogRecord
+            {
+                Origin = message.Origin,
+                EventTimestamp = message.EventTimestamp,
+                RawData = message.RawData,
+            };
+            var text = JsonConvert.SerializeObject(lean);
+            if (text.Length > kMaxMessageLength && lean.RawData != null)
             {
                 int delta = text.Length - kMaxMessageLength;
-                if (message.RawData.Length > delta)
+                if (lean.RawData.Length > delta)
                 {
-                    int length = message.RawData.Length - delta;
-                    message.RawData = message.RawData.Substring(0, length);
+                    int length = lean.RawData.Length - delta;
+                    lean.RawData = lean.RawData.Substring(0, length);
                 }
             }
+            // Message can still be bigger. But we can't safely strip
+            // anything else at this point.
             return new CloudQueueMessage(text);
-        }
-
-        private LogMessage ConvertToMessage(ITableEntity entity, LogRecord record)
-        {
-            var message = new LogMessage
-            {
-                PartitionKey = entity.PartitionKey,
-                RowKey = entity.RowKey,
-            };
-            if (_options.FatQueueMessage)
-            {
-                message.Origin = record.Origin;
-                message.Timestamp = record.Timestamp;
-                message.RawData = record.RawData;
-            }
-            return message;
         }
 
         public bool Upload(LogRecord record)
         {
             try
             {
+                if (_queue != null)
+                {
+                    _queue.AddMessage(Serialize(record));
+                }
+
                 var entity = ConvertToEntity(record);
                 ConnectIfNeeded();
                 if (_table != null)
                 {
                     _table.Execute(TableOperation.InsertOrReplace(entity));
-                }
-                if (_queue != null)
-                {
-                    var message = ConvertToMessage(entity, record);
-                    _queue.AddMessage(Serialize(message));
                 }
                 return true;
             }
@@ -116,28 +101,23 @@ namespace NxlogAzureForwarder
 
         private DynamicTableEntity ConvertToEntity(LogRecord record)
         {
-            var ticks = record.Timestamp.Ticks;
-            var mostSigTime = string.Format("{0:D19}", kTickResolution * (ticks / kTickResolution));
-            var leastSigTime = string.Format("{0:D19}", ticks % kTickResolution);
-
-            var hash = record.RawData.GetHashCode();
-            var row = string.Join("___", record.Origin, leastSigTime, hash.ToString("x8"));
-
             var entity = new DynamicTableEntity
             {
-                PartitionKey = mostSigTime,
-                RowKey = row,
+                PartitionKey = PropertyRender.Render(_options.PartitionKey, record),
+                RowKey = PropertyRender.Render(_options.RowKey, record),
             };
-            if (_options.IncludeExtraColumns && record.ParsedProperties != null)
+            if (record.ParsedData != null)
             {
-                foreach (var pair in record.ParsedProperties)
+                foreach (var pair in record.ParsedData)
                 {
-                    if (!string.IsNullOrEmpty(pair.Value))
+                    if (_options.AditionalColumns.Contains(pair.Key) && pair.Value != null)
                     {
-                        entity[pair.Key] = new EntityProperty(pair.Value);
+                        entity[pair.Key] = EntityProperty.CreateEntityPropertyFromObject(pair.Value);
                     }
                 }
             }
+            entity["EventTimestamp"] = new EntityProperty(record.EventTimestamp);
+            entity["Origin"] = new EntityProperty(record.Origin);
             entity["RawData"] = new EntityProperty(record.RawData);
             return entity;
         }

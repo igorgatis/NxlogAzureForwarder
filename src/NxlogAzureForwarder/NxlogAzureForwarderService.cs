@@ -1,6 +1,7 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.Net;
@@ -10,11 +11,12 @@ namespace NxlogAzureForwarder
 {
     public partial class NxlogAzureForwarderService : ServiceBase
     {
-        private const string kConnectionStringKey = "AzureStorageConnectionString";
-        private const string kAzureTableNameKey = "AzureTableName";
-        private const string kIncludeExtraColumnsKey = "IncludeExtraColumns";
-        private const string kAzureQueueNameKey = "AzureQueueName";
-        private const string kFatQueueMessageKey = "FatQueueMessage";
+        private const string kConnectionString = "ConnectionString";
+        private const string kQueueName = "QueueName";
+        private const string kTableName = "TableName";
+        private const string kPartitionKey = "PartitionKey";
+        private const string kRowKey = "RowKey";
+        private const string kAditionalColumns = "AditionalColumns";
 
         private HttpServer _server;
 
@@ -28,13 +30,14 @@ namespace NxlogAzureForwarder
             try
             {
                 var appSettings = ConfigurationManager.AppSettings;
-                var account = CloudStorageAccount.Parse(appSettings[kConnectionStringKey]);
+                var account = CloudStorageAccount.Parse(appSettings[kConnectionString]);
                 var options = new Uploader.Options
                 {
-                    TableName = appSettings[kAzureTableNameKey],
-                    IncludeExtraColumns = bool.Parse(appSettings[kIncludeExtraColumnsKey]),
-                    QueueName = appSettings[kAzureQueueNameKey],
-                    FatQueueMessage = bool.Parse(appSettings[kFatQueueMessageKey]),
+                    QueueName = appSettings[kQueueName],
+                    TableName = appSettings[kTableName],
+                    PartitionKey = appSettings[kPartitionKey],
+                    RowKey = appSettings[kRowKey],
+                    AditionalColumns = new HashSet<string>(appSettings[kAditionalColumns].Split(',')),
                 };
 
                 Trace.TraceInformation(JsonConvert.SerializeObject(options));

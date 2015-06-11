@@ -5,12 +5,12 @@ using System.Text;
 
 namespace NxlogAzureForwarder
 {
-    internal class LogRecord
+    public class LogRecord
     {
-        public DateTime Timestamp { get; set; }
+        public DateTime EventTimestamp { get; set; }
         public string Origin { get; set; }
         public string RawData { get; set; }
-        public Dictionary<string, string> ParsedProperties { get; set; }
+        public Dictionary<string, object> ParsedData { get; set; }
     }
 
     internal class LogParser
@@ -27,11 +27,6 @@ namespace NxlogAzureForwarder
             public string RoleInstance { get; set; }
 
             public string Hostname { get; set; }
-
-            public string SourceModuleName { get; set; }
-            public string SourceName { get; set; }
-            public string Severity { get; set; }
-            public string Message { get; set; }
         }
 
         public bool IncludeExtraColumns { get; set; }
@@ -39,31 +34,30 @@ namespace NxlogAzureForwarder
         public LogRecord Parse(DateTime receiveTime, string endpoint, string text)
         {
             text = text ?? "";
-            JsonLine record;
+            JsonLine jsonLine;
             try
             {
-                record = JsonConvert.DeserializeObject<JsonLine>(text);
+                jsonLine = JsonConvert.DeserializeObject<JsonLine>(text);
             }
             catch
             {
-                record = new JsonLine();
+                jsonLine = new JsonLine();
             }
-            var time = ParseTimestamp(record, receiveTime);
-            var source = ExtractSource(record, endpoint);
+            var time = ParseTimestamp(jsonLine, receiveTime);
+            var source = ExtractSource(jsonLine, endpoint);
 
-            return new LogRecord
+            var record = new LogRecord
             {
-                Timestamp = ParseTimestamp(record, receiveTime),
-                Origin = ExtractSource(record, endpoint),
+                EventTimestamp = ParseTimestamp(jsonLine, receiveTime),
+                Origin = ExtractSource(jsonLine, endpoint),
                 RawData = text,
-                ParsedProperties = new Dictionary<string, string>()
-                {
-                    {"SourceModuleName", record.SourceModuleName},
-                    {"SourceName", record.SourceName},
-                    {"Severity", record.Severity},
-                    {"Message", record.Message},
-                },
             };
+            try
+            {
+                record.ParsedData = JsonConvert.DeserializeObject<Dictionary<string, object>>(text);
+            }
+            catch { }
+            return record;
         }
 
         private DateTime ParseTimestamp(JsonLine record, DateTime defaultValue)

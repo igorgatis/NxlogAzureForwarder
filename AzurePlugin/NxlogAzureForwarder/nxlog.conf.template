@@ -5,8 +5,8 @@ CacheDir  %ROOT%\data
 Pidfile   %ROOT%\data\nxlog.pid
 SpoolDir  %ROOT%\data
 LogFile   %ROOT%\data\nxlog.log
-LogLevel  WARNING
-SuppressRepeatingLogs TRUE
+#LogLevel  WARNING
+#SuppressRepeatingLogs TRUE
 
 <Extension json>
    Module xm_json
@@ -27,7 +27,7 @@ SuppressRepeatingLogs TRUE
 
 <Input nxlogs>
     Module im_internal
-    Exec if $SeverityValue <= 2 drop();
+    #Exec if $SeverityValue <= 2 drop();
     Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
 
