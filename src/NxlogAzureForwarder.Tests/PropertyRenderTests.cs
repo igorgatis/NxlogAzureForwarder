@@ -43,8 +43,8 @@ namespace NxlogAzureForwarder.Tests
                 EventTimestamp = kTimestamp,
                 RawData = "test 123",
             };
-            Assert.Equal("2015-01-02___foo_bar",
-                PropertyRender.Render("${EventTimestamp:yyyy-MM-dd}___${Origin}", record));
+            Assert.Equal("2015-01-02T03:00:00___foo_bar",
+                PropertyRender.Render("${EventTimestamp:yyyy-MM-ddTHH:00:00}___${Origin}", record));
             Assert.Equal("2015-01-02T03:04:05.6780000Z___FF62F761",
                 PropertyRender.Render("${EventTimestamp:o}___${RawData.GetHashCode():X8}", record));
         }

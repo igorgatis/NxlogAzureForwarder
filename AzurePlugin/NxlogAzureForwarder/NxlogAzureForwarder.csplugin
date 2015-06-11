@@ -3,7 +3,7 @@
   <Startup>
     <Task commandLine="install-plugin.cmd" executionContext="elevated" taskType="simple">
       <Environment>
-        <Variable name="AzureStorageConnectionString">
+        <Variable name="ConnectionString">
           <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/ConfigurationSettings/ConfigurationSetting[@name='Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString']/@value" />
         </Variable>
         <Variable name="DeploymentId">
