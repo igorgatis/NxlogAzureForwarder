@@ -22,6 +22,7 @@ SuppressRepeatingLogs TRUE
 <Input winlogs>
     Module im_msvistalog
     Query %WindowsEventQuery%
+    Exec $EventUnixTimeUs = string(integer($EventTime));
     Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
 
@@ -29,12 +30,17 @@ SuppressRepeatingLogs TRUE
     Module im_internal
     Exec if $Message =~ /connecting to/ drop();
     Exec if $Message =~ /disconnect/ drop();
+    Exec $EventUnixTimeUs = string(integer($EventTime));
     Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
 
 <Output output>
     Module om_http
     Url http://localhost:8514/upload
+	Exec \
+	    if not defined($EventUnixTimeUs) and defined($EventReceivedTime) \
+		    $EventUnixTimeUs = string(integer($EventReceivedTime)); \
+		    $EventUnixTimeMs = string(integer($EventReceivedTime) / 1000);
     Exec \
         $DeploymentId = '%DeploymentId%'; if $DeploymentId =~ /^%\w+%$/ delete($DeploymentId); \
         $RoleName     = '%RoleName%';     if $RoleName     =~ /^%\w+%$/ delete($RoleName); \

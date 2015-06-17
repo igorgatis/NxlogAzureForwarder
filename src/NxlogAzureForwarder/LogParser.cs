@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace NxlogAzureForwarder
@@ -15,75 +16,129 @@ namespace NxlogAzureForwarder
 
     internal class LogParser
     {
-        private readonly static DateTime kEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        public int MaxJsonSize { get; set; }
 
-        private class JsonLine
+        public LogParser()
         {
-            public string EventUnixTimeMs { get; set; }
-            public string EventReceivedTime { get; set; }
-
-            public string DeploymentId { get; set; }
-            public string RoleName { get; set; }
-            public string RoleInstance { get; set; }
-
-            public string Hostname { get; set; }
+            MaxJsonSize = (60 * 1024) / 2;
         }
 
-        public bool IncludeExtraColumns { get; set; }
+        private readonly static DateTime kEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        public LogRecord Parse(DateTime receiveTime, string endpoint, string text)
+        public LogRecord Parse(DateTime receiveTime, string endpoint, string rawData)
         {
-            text = text ?? "";
-            JsonLine jsonLine;
+            rawData = rawData ?? "";
+            Dictionary<string, object> parsedData = null;
             try
             {
-                jsonLine = JsonConvert.DeserializeObject<JsonLine>(text);
+                parsedData = JsonConvert.DeserializeObject<Dictionary<string, object>>(rawData);
             }
             catch
             {
-                jsonLine = new JsonLine();
+                // TODO(gatis): add counter.
             }
-            var time = ParseTimestamp(jsonLine, receiveTime);
-            var source = ExtractSource(jsonLine, endpoint);
+            if (parsedData == null)
+            {
+                parsedData = new Dictionary<string, object>()
+                {
+                    {"EventReceivedTime", receiveTime},
+                    {"Hostname", endpoint},
+                    {"Message", rawData},
+                };
+            }
 
-            var record = new LogRecord
+            var time = ExtractTimestamp(parsedData, receiveTime);
+            var origin = ExtractOrigin(parsedData, endpoint);
+            var message = ExtractMessage(parsedData);
+            return new LogRecord
             {
-                EventTimestamp = ParseTimestamp(jsonLine, receiveTime),
-                Origin = ExtractSource(jsonLine, endpoint),
-                RawData = text,
+                EventTimestamp = time,
+                Origin = origin,
+                ParsedData = parsedData,
+                RawData = ToJson(time, origin, message, parsedData),
             };
-            try
-            {
-                record.ParsedData = JsonConvert.DeserializeObject<Dictionary<string, object>>(text);
-            }
-            catch { }
-            return record;
         }
 
-        private DateTime ParseTimestamp(JsonLine record, DateTime defaultValue)
+        private void SetCoreFields(DateTime time, string origin, string message, Dictionary<string, object> dict)
+        {
+            var timeIso8601 = time.ToUniversalTime().ToString("o");
+            dict["EventTimeIso8601"] = timeIso8601;
+            dict["Message"] = message;
+            using (var md5digest = MD5.Create())
+            {
+                var uniqueInfo = string.Join(timeIso8601, origin, message);
+                byte[] md5sig = md5digest.ComputeHash(Encoding.UTF8.GetBytes(uniqueInfo));
+                dict["EventUUID"] = BitConverter.ToString(md5sig).Replace("-", string.Empty).ToLower();
+            }
+        }
+
+        private string ToJson(DateTime time, string origin, string message, Dictionary<string, object> dict)
+        {
+            SetCoreFields(time, origin, message, dict);
+            var json = JsonConvert.SerializeObject(dict);
+
+            // Truncation.
+            if (json.Length > MaxJsonSize)
+            {
+                int delta = json.Length - MaxJsonSize;
+                message = message.Substring(0, Math.Max(0, message.Length - delta));
+                SetCoreFields(time, origin, message, dict);
+                json = JsonConvert.SerializeObject(dict);
+            }
+
+            return json;
+        }
+
+        private DateTime ExtractTimestamp(Dictionary<string, object> record, DateTime defaultValue)
         {
             try
             {
-                var ms = Int64.Parse(record.EventUnixTimeMs);
-                return kEpoch + TimeSpan.FromMilliseconds(ms);
+                return Convert.ToDateTime(record["EventTimeIso8601"]).ToUniversalTime();
             }
             catch { }
             try
             {
-                return DateTime.Parse(record.EventReceivedTime).ToUniversalTime();
+                var microseconds = Convert.ToInt64(record["EventUnixTimeUs"]);
+                return kEpoch + TimeSpan.FromMilliseconds(microseconds / 1000.0);
+            }
+            catch { }
+            try
+            {
+                var milliseconds = Convert.ToInt64(record["EventUnixTimeMs"]);
+                return kEpoch + TimeSpan.FromMilliseconds(milliseconds);
+            }
+            catch { }
+            try
+            {
+                return Convert.ToDateTime(record["EventTime"]).ToUniversalTime();
+            }
+            catch { }
+            try
+            {
+                return Convert.ToDateTime(record["EventReceivedTime"]).ToUniversalTime();
             }
             catch { }
             return defaultValue;
         }
 
-        private string ExtractSource(JsonLine record, string defaultValue)
+        private string Get(Dictionary<string, object> record, string key)
+        {
+            object value = null;
+            if (record.TryGetValue(key, out value) && value is string)
+            {
+                return (string)value;
+            }
+            return "";
+        }
+
+        private string ExtractOrigin(Dictionary<string, object> record, string defaultValue)
         {
             var source = new StringBuilder();
-            AppendIfNotBlank(source, record.DeploymentId);
-            AppendIfNotBlank(source, record.RoleName);
-            AppendIfNotBlank(source, record.RoleInstance);
+            AppendIfNotBlank(source, Get(record, "DeploymentId"));
+            AppendIfNotBlank(source, Get(record, "RoleName"));
+            AppendIfNotBlank(source, Get(record, "RoleInstance"));
 
-            if (source.Length == 0) AppendIfNotBlank(source, record.Hostname);
+            if (source.Length == 0) AppendIfNotBlank(source, Get(record, "Hostname"));
 
             return source.Length > 0 ? source.ToString() : defaultValue;
         }
@@ -93,6 +148,16 @@ namespace NxlogAzureForwarder
             if (string.IsNullOrWhiteSpace(part)) return;
             if (buffer.Length > 0) buffer.Append("___");
             buffer.Append(part.Trim());
+        }
+
+        private string ExtractMessage(Dictionary<string, object> record)
+        {
+            try
+            {
+                return (string)record["Message"];
+            }
+            catch { }
+            return string.Empty;
         }
     }
 }

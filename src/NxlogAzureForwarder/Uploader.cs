@@ -5,15 +5,11 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.Text.RegularExpressions;
 
 namespace NxlogAzureForwarder
 {
     internal class Uploader
     {
-        private const int kMaxMessageLength = 60 * 1024;
-
         public class Options
         {
             public string QueueName { get; set; }
@@ -34,20 +30,50 @@ namespace NxlogAzureForwarder
             _options = options;
         }
 
-        private void ConnectIfNeeded()
+        public bool Upload(LogRecord record)
         {
-            if (_table == null && !string.IsNullOrEmpty(_options.TableName))
+            try
             {
-                _table = _account.CreateCloudTableClient()
-                    .GetTableReference(_options.TableName);
-                _table.CreateIfNotExists();
+                if (_table == null && !string.IsNullOrEmpty(_options.TableName))
+                {
+                    _table = _account.CreateCloudTableClient()
+                        .GetTableReference(_options.TableName);
+                    _table.CreateIfNotExists();
+                }
+                if (_table != null)
+                {
+                    var entity = ConvertToEntity(record);
+                    _table.Execute(TableOperation.InsertOrReplace(entity));
+                }
             }
-            if (_queue == null && !string.IsNullOrEmpty(_options.QueueName))
+            catch (Exception e)
             {
-                _queue = _account.CreateCloudQueueClient()
-                    .GetQueueReference(_options.QueueName);
-                _queue.CreateIfNotExists();
+                _table = null;
+                Trace.TraceError(e.ToString());
+                return false;
             }
+
+            try
+            {
+                if (_queue == null && !string.IsNullOrEmpty(_options.QueueName))
+                {
+                    _queue = _account.CreateCloudQueueClient()
+                        .GetQueueReference(_options.QueueName);
+                    _queue.CreateIfNotExists();
+                }
+                if (_queue != null)
+                {
+                    _queue.AddMessage(Serialize(record));
+                }
+            }
+            catch (Exception e)
+            {
+                _queue = null;
+                Trace.TraceError(e.ToString());
+                return false;
+            }
+
+            return true;
         }
 
         private CloudQueueMessage Serialize(LogRecord message)
@@ -56,47 +82,9 @@ namespace NxlogAzureForwarder
             {
                 Origin = message.Origin,
                 EventTimestamp = message.EventTimestamp,
-                RawData = message.RawData,
+                RawData = message.RawData ?? "",
             };
-            var text = JsonConvert.SerializeObject(lean);
-            if (text.Length > kMaxMessageLength && lean.RawData != null)
-            {
-                int delta = text.Length - kMaxMessageLength;
-                if (lean.RawData.Length > delta)
-                {
-                    int length = lean.RawData.Length - delta;
-                    lean.RawData = lean.RawData.Substring(0, length);
-                }
-            }
-            // Message can still be bigger. But we can't safely strip
-            // anything else at this point.
-            return new CloudQueueMessage(text);
-        }
-
-        public bool Upload(LogRecord record)
-        {
-            try
-            {
-                if (_queue != null)
-                {
-                    _queue.AddMessage(Serialize(record));
-                }
-
-                var entity = ConvertToEntity(record);
-                ConnectIfNeeded();
-                if (_table != null)
-                {
-                    _table.Execute(TableOperation.InsertOrReplace(entity));
-                }
-                return true;
-            }
-            catch (Exception e)
-            {
-                _table = null;
-                _queue = null;
-                Trace.TraceError(e.ToString());
-                return false;
-            }
+            return new CloudQueueMessage(JsonConvert.SerializeObject(lean));
         }
 
         private DynamicTableEntity ConvertToEntity(LogRecord record)
@@ -106,19 +94,23 @@ namespace NxlogAzureForwarder
                 PartitionKey = PropertyRender.Render(_options.PartitionKey, record),
                 RowKey = PropertyRender.Render(_options.RowKey, record),
             };
-            if (record.ParsedData != null)
-            {
-                foreach (var pair in record.ParsedData)
-                {
-                    if (_options.AditionalColumns.Contains(pair.Key) && pair.Value != null)
-                    {
-                        entity[pair.Key] = EntityProperty.CreateEntityPropertyFromObject(pair.Value);
-                    }
-                }
-            }
             entity["EventTimestamp"] = new EntityProperty(record.EventTimestamp);
             entity["Origin"] = new EntityProperty(record.Origin);
             entity["RawData"] = new EntityProperty(record.RawData);
+            var propertiesAdded = new HashSet<string>(entity.Properties.Keys);
+            if (record.ParsedData != null)
+            {
+                foreach (var key in _options.AditionalColumns)
+                {
+                    object value = null;
+                    if (record.ParsedData.TryGetValue(key, out value) &&
+                        value != null &&
+                        propertiesAdded.Add(key))
+                    {
+                        entity[key] = EntityProperty.CreateEntityPropertyFromObject(value);
+                    }
+                }
+            }
             return entity;
         }
     }
