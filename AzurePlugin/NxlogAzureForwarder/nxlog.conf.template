@@ -1,4 +1,4 @@
-define ROOT %InstallPath%
+define ROOT %NxlogInstallPath%
 
 Moduledir %ROOT%\modules
 CacheDir  %ROOT%\data
@@ -12,6 +12,29 @@ SuppressRepeatingLogs TRUE
    Module xm_json
 </Extension>
 
+<Output output>
+    Module om_http
+    Url http://localhost:8514/upload
+    Exec if not defined($EventUnixTimeUs) \
+        if defined($EventTime) \
+            $EventUnixTimeUs = string(integer($EventTime)); \
+        else if defined($EventReceivedTime) \
+            $EventUnixTimeUs = string(integer($EventReceivedTime));
+    Exec \
+        $DeploymentId = '%DeploymentId%';
+        $RoleName     = '%RoleName%';
+        $RoleInstance = '%RoleInstance%';
+        $FaultDomain  = '%FaultDomain%';
+        $UpdateDomain = '%UpdateDomain%';
+    Exec to_json();
+</Output>
+
+<Input nxlogs>
+    Module im_internal
+    Exec if $Message =~ /connecting to/ drop();
+    Exec if $Message =~ /disconnect/ drop();
+</Input>
+
 <Input applogs>
     Module im_tcp
     Host localhost
@@ -22,33 +45,7 @@ SuppressRepeatingLogs TRUE
 <Input winlogs>
     Module im_msvistalog
     Query %WindowsEventQuery%
-    Exec $EventUnixTimeUs = string(integer($EventTime));
-    Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
 </Input>
-
-<Input nxlogs>
-    Module im_internal
-    Exec if $Message =~ /connecting to/ drop();
-    Exec if $Message =~ /disconnect/ drop();
-    Exec $EventUnixTimeUs = string(integer($EventTime));
-    Exec $EventUnixTimeMs = string(integer($EventTime) / 1000);
-</Input>
-
-<Output output>
-    Module om_http
-    Url http://localhost:8514/upload
-	Exec \
-	    if not defined($EventUnixTimeUs) and defined($EventReceivedTime) \
-		    $EventUnixTimeUs = string(integer($EventReceivedTime)); \
-		    $EventUnixTimeMs = string(integer($EventReceivedTime) / 1000);
-    Exec \
-        $DeploymentId = '%DeploymentId%'; if $DeploymentId =~ /^%\w+%$/ delete($DeploymentId); \
-        $RoleName     = '%RoleName%';     if $RoleName     =~ /^%\w+%$/ delete($RoleName); \
-        $RoleInstance = '%RoleInstance%'; if $RoleInstance =~ /^%\w+%$/ delete($RoleInstance); \
-        $FaultDomain  = '%FaultDomain%';  if $FaultDomain  =~ /^%\w+%$/ delete($FaultDomain); \
-        $UpdateDomain = '%UpdateDomain%'; if $UpdateDomain =~ /^%\w+%$/ delete($UpdateDomain);
-    Exec to_json();
-</Output>
 
 <Route defaultroute>
     Path applogs, winlogs, nxlogs => output
