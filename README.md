@@ -1,7 +1,9 @@
 # NxlogAzureForwarder
-Service which forwards Nxlog logs to Azure Table Storage.
+Service which forwards Nxlog logs to Azure.
 
 Use this application to pump logs from Azure VMs and Cloud Service, as well as from on-premise Servers and workstations.
+
+Logs can be written to Azure Table Storage or Azure Queue or both.
 
 # Installation:
 It can be installed in two ways:

@@ -39,11 +39,14 @@ Function InstallNxlog
     Write-Host "* Copying nxlog.conf..."
     try { Stop-Service nxlog } catch {}
     Copy-Item "$PSScriptRoot\nxlog.conf" "$PSScriptRoot\..\nxlog\conf" -Force
+}
 
-    # If everything went fine, remove temporary files.
-    Write-Host "* Cleaning nxlog temp files..."
+Function CleanUp
+{
+    Write-Host "* Cleaning temp files..."
     Remove-Item "$PSScriptRoot\nxlog.conf"
     Remove-Item "$PSScriptRoot\nxlog-ce-2.9.1347.msi"
+    Remove-Item "$PSScriptRoot\*.InstallLog"
 }
 
 try
@@ -62,6 +65,8 @@ try
     Restart-Service NxlogAzureForwarder
     Write-Host "* Restart nxlog service..."
     Restart-Service nxlog
+
+    CleanUp
 
     # TODO(gatis): verify data flows to table storage.
     Write-Host "* Done!"

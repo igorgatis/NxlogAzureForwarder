@@ -7,10 +7,13 @@ RequestExecutionLevel admin
 Section "Install"
   SectionIn RO
   SetOutPath $INSTDIR
+
+  ; Files to be copied.
   File "NxlogAzureForwarder.exe"
   File "NxlogAzureForwarder.exe.config"
   File "nxlog-ce-2.9.1347.msi"
   File "nxlog.conf"
+  File "setup.cmd"
   File "setup.ps1"
 
   ; Override for NxlogAzureForwarder.exe.config.
@@ -25,13 +28,14 @@ Section "Install"
     CopyFiles "$EXEDIR\nxlog.conf" "$INSTDIR\nxlog.conf"
   SkipNxlogConf:
 
+  ; Run install script.
   DetailPrint "Running post install scripts..."
-  nsExec::ExecToLog 'PowerShell.exe -ExecutionPolicy UnRestricted -File "$INSTDIR\setup.ps1"'
+  nsExec::ExecToLog "$INSTDIR\setup.cmd"
   Pop $R0
   IntCmp $R0 0 SetupSuccess
     SetDetailsView show
     Abort "INSTALLATION FAILED!"
   SetupSuccess:
+    Delete "$INSTDIR\setup.*"
     DetailPrint "SUCCESS!"
-
 SectionEnd
