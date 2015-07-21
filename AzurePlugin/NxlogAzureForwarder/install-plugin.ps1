@@ -10,7 +10,7 @@ Function FillNxlogConf
 
 Function FillNxlogAzureForwarderConfig
 {
-    $templateFile = "$PSScriptRoot\NxlogAzureForwarder.exe.config.template")
+    $templateFile = "$PSScriptRoot\NxlogAzureForwarder.exe.config.template"
     $appConfig = (Get-Content $templateFile) -As [Xml]
     $appConfig.configuration.appSettings.add `
         | ForEach { try { $_.Value = [environment]::GetEnvironmentVariable($_.Key) } catch {} }
