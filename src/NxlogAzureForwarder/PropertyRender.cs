@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace NxlogAzureForwarder
 {
@@ -14,29 +11,33 @@ namespace NxlogAzureForwarder
 
         static PropertyRender()
         {
-            _kPropertyParser = new Regex(@"(?<start>\$\{)(?<property>[^:}]+)(?<format>:[^}]+)?(?<end>\})",
+            _kPropertyParser = new Regex(@"(?<start>[\$~]\{)(?<property>[^:}]+)(?<format>:[^}]+)?(?<end>\})",
                 RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         }
 
-        private static object Resolve(LogRecord record, string property)
+        private static string Inverted(string text)
         {
-            switch (property)
+            var buffer = new StringBuilder();
+            foreach (var ch in text)
             {
-                case "Origin":
-                    return record.Origin;
-                case "EventTimestamp":
-                    return record.EventTimestamp;
-                case "RawData":
-                    return record.RawData;
-                case "RawData.GetHashCode()":
-                    return (record.RawData ?? "").GetHashCode();
+                if (ch >= '0' && ch <= '9')
+                {
+                    buffer.Append((char)('9' - (ch - '0')));
+                }
+                else if (ch >= 'A' && ch <= 'Z')
+                {
+                    buffer.Append((char)('Z' - (ch - 'A')));
+                }
+                else if (ch >= 'a' && ch <= 'z')
+                {
+                    buffer.Append((char)('z' - (ch - 'a')));
+                }
+                else
+                {
+                    buffer.Append(ch);
+                }
             }
-            try
-            {
-                return record.ParsedData[property];
-            }
-            catch { }
-            return null;
+            return buffer.ToString();
         }
 
         public static string Render(string format, LogRecord record)
@@ -44,12 +45,16 @@ namespace NxlogAzureForwarder
             return _kPropertyParser.Replace(format, delegate(Match m)
             {
                 Group startGroup = m.Groups["start"];
+                Func<string, string> transform = (x) => x;
+                if (startGroup.Value.StartsWith("~")) transform = Inverted;
+
                 Group propertyGroup = m.Groups["property"];
+                var value = record.Resolve(propertyGroup.Value ?? "");
+
                 Group formatGroup = m.Groups["format"];
-                Group endGroup = m.Groups["end"];
-                var value = Resolve(record, propertyGroup.Value ?? "");
                 var singleFormat = "{0" + formatGroup.Value + "}";
-                return string.Format(CultureInfo.InvariantCulture, singleFormat, value);
+
+                return transform(string.Format(CultureInfo.InvariantCulture, singleFormat, value));
             });
         }
     }

@@ -21,11 +21,8 @@ SuppressRepeatingLogs TRUE
         else if defined($EventReceivedTime) \
             $EventUnixTimeUs = string(integer($EventReceivedTime));
     Exec \
-        $DeploymentId = '%DeploymentId%'; \
-        $RoleName     = '%RoleName%'; \
-        $RoleInstance = '%RoleInstance%'; \
-        $FaultDomain  = '%FaultDomain%'; \
-        $UpdateDomain = '%UpdateDomain%';
+        $DeploymentId = '%RoleDeploymentID%'; \
+        $RoleInstance = '%RoleInstanceID%';
     Exec to_json();
 </Output>
 

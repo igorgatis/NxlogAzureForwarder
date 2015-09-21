@@ -12,6 +12,27 @@ namespace NxlogAzureForwarder
         public string Origin { get; set; }
         public string RawData { get; set; }
         public Dictionary<string, object> ParsedData { get; set; }
+
+        public object Resolve(string property)
+        {
+            switch (property)
+            {
+                case "Origin":
+                    return Origin;
+                case "EventTimestamp":
+                    return EventTimestamp;
+                case "RawData":
+                    return RawData;
+                case "RawData.GetHashCode()":
+                    return (RawData ?? "").GetHashCode();
+            }
+            try
+            {
+                return ParsedData[property];
+            }
+            catch { }
+            return null;
+        }
     }
 
     internal class LogParser
@@ -135,7 +156,6 @@ namespace NxlogAzureForwarder
         {
             var source = new StringBuilder();
             AppendIfNotBlank(source, Get(record, "DeploymentId"));
-            AppendIfNotBlank(source, Get(record, "RoleName"));
             AppendIfNotBlank(source, Get(record, "RoleInstance"));
 
             if (source.Length == 0) AppendIfNotBlank(source, Get(record, "Hostname"));

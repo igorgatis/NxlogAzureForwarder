@@ -94,22 +94,21 @@ namespace NxlogAzureForwarder
                 PartitionKey = PropertyRender.Render(_options.PartitionKey, record),
                 RowKey = PropertyRender.Render(_options.RowKey, record),
             };
-            entity["EventTimestamp"] = new EntityProperty(record.EventTimestamp);
-            entity["Origin"] = new EntityProperty(record.Origin);
-            entity["RawData"] = new EntityProperty(record.RawData);
             var propertiesAdded = new HashSet<string>(entity.Properties.Keys);
             if (record.ParsedData != null)
             {
                 foreach (var key in _options.AditionalColumns)
                 {
-                    object value = null;
-                    if (record.ParsedData.TryGetValue(key, out value) &&
-                        value != null &&
-                        propertiesAdded.Add(key))
+                    object value = record.Resolve(key);
+                    if (value != null && propertiesAdded.Add(key))
                     {
                         entity[key] = EntityProperty.CreateEntityPropertyFromObject(value);
                     }
                 }
+            }
+            if (propertiesAdded.Count == 0)
+            {
+                entity["RawData"] = new EntityProperty(record.RawData);
             }
             return entity;
         }

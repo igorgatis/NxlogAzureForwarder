@@ -6,21 +6,6 @@
         <Variable name="ConnectionString">
           <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/ConfigurationSettings/ConfigurationSetting[@name='Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString']/@value" />
         </Variable>
-        <Variable name="DeploymentId">
-          <RoleInstanceValue xpath="/RoleEnvironment/Deployment/@id" />
-        </Variable>
-        <Variable name="RoleInstance">
-          <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/@id" />
-        </Variable>
-        <Variable name="RoleName">
-          <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/@roleName" />
-        </Variable>
-        <Variable name="FaultDomain">
-          <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/@faultDomain" />
-        </Variable>
-        <Variable name="UpdateDomain">
-          <RoleInstanceValue xpath="/RoleEnvironment/CurrentInstance/@updateDomain" />
-        </Variable>
       </Environment>
     </Task>
   </Startup>

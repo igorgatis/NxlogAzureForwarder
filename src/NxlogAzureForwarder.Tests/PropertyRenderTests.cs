@@ -83,5 +83,20 @@ namespace NxlogAzureForwarder.Tests
             Assert.Equal("System.Object", PropertyRender.Render("${objectKey}", record));
             Assert.Equal("Foo!", PropertyRender.Render("${fooKey}", record));
         }
+
+        [Fact]
+        public void Inverted()
+        {
+            var record = new LogRecord
+            {
+                Origin = "foo_bar",
+                EventTimestamp = kTimestamp,
+                RawData = "test 123",
+            };
+            Assert.Equal("7984-98-97G96:99:99___foo_bar",
+                PropertyRender.Render("~{EventTimestamp:yyyy-MM-ddTHH:00:00}___${Origin}", record));
+            Assert.Equal("7984-98-97G96:95:94.3219999A___FF62F761",
+                PropertyRender.Render("~{EventTimestamp:o}___${RawData.GetHashCode():X8}", record));
+        }
     }
 }
