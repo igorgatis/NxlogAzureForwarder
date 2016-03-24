@@ -17,6 +17,7 @@ namespace NxlogAzureForwarder
             public string PartitionKey { get; set; }
             public string RowKey { get; set; }
             public HashSet<string> AditionalColumns { get; set; }
+            public bool Debug { get; set; }
         }
 
         private CloudStorageAccount _account;
@@ -32,6 +33,8 @@ namespace NxlogAzureForwarder
 
         public bool Upload(LogRecord record)
         {
+            int expectation = 0;
+            int actual = 0;
             try
             {
                 if (_table == null && !string.IsNullOrEmpty(_options.TableName))
@@ -42,14 +45,22 @@ namespace NxlogAzureForwarder
                 }
                 if (_table != null)
                 {
+                    expectation += 1;
                     var entity = ConvertToEntity(record);
-                    _table.Execute(TableOperation.InsertOrReplace(entity));
+                    var result = _table.Execute(TableOperation.InsertOrReplace(entity));
+                    var statusGroup = result.HttpStatusCode / 100;
+                    if (statusGroup != 2 && statusGroup != 4)
+                    {
+                        if (_options.Debug) Trace.TraceError("HTTP status: " + result.HttpStatusCode);
+                        return false;
+                    }
+                    actual += 1;
                 }
             }
             catch (Exception e)
             {
                 _table = null;
-                Trace.TraceError(e.ToString());
+                if (_options.Debug) Trace.TraceError(e.ToString());
                 return false;
             }
 
@@ -63,17 +74,24 @@ namespace NxlogAzureForwarder
                 }
                 if (_queue != null)
                 {
+                    expectation += 2;
                     _queue.AddMessage(Serialize(record));
+                    actual += 2;
                 }
             }
             catch (Exception e)
             {
                 _queue = null;
-                Trace.TraceError(e.ToString());
+                if (_options.Debug) Trace.TraceError(e.ToString());
                 return false;
             }
 
-            return true;
+            if (_options.Debug && actual != expectation)
+            {
+                Trace.TraceError(string.Format("expectation={0} != {1}=actual", expectation, actual));
+            }
+
+            return expectation == actual;
         }
 
         private CloudQueueMessage Serialize(LogRecord message)

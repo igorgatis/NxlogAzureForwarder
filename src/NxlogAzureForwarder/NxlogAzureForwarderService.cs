@@ -17,6 +17,7 @@ namespace NxlogAzureForwarder
         private const string kPartitionKey = "PartitionKey";
         private const string kRowKey = "RowKey";
         private const string kAditionalColumns = "AditionalColumns";
+        private const string kDebug = "Debug";
 
         private HttpServer _server;
 
@@ -31,6 +32,8 @@ namespace NxlogAzureForwarder
             {
                 var appSettings = ConfigurationManager.AppSettings;
                 var account = CloudStorageAccount.Parse(appSettings[kConnectionString]);
+                bool debug = false;
+                if (!bool.TryParse(appSettings[kDebug], out debug)) debug = false;
                 var options = new Uploader.Options
                 {
                     QueueName = appSettings[kQueueName],
@@ -38,6 +41,7 @@ namespace NxlogAzureForwarder
                     PartitionKey = appSettings[kPartitionKey],
                     RowKey = appSettings[kRowKey],
                     AditionalColumns = new HashSet<string>(appSettings[kAditionalColumns].Split(',')),
+                    Debug = debug,
                 };
 
                 Trace.TraceInformation(JsonConvert.SerializeObject(options));
@@ -47,7 +51,7 @@ namespace NxlogAzureForwarder
                     throw new Exception("No output specified.");
                 }
 
-                _server = new HttpServer(Dns.GetHostName(), new Uploader(account, options));
+                _server = new HttpServer(Dns.GetHostName(), new Uploader(account, options), debug);
                 _server.Start();
             }
             catch (Exception e)

@@ -22,13 +22,16 @@ namespace NxlogAzureForwarder
         private LogParser _parser;
         private Uploader _uploader;
         private HttpListener _listener;
+        private long _total;
+        private bool _debug;
 
-        public HttpServer(string hostname, Uploader uploader)
+        public HttpServer(string hostname, Uploader uploader, bool debug = false)
         {
             _hostname = hostname;
             _statistics = new Statistics();
             _parser = new LogParser();
             _uploader = uploader;
+            _debug = debug;
             _listener = new HttpListener();
             _listener.Prefixes.Add("http://localhost:8514/");
             _listener.Prefixes.Add("http://127.0.0.1:8514/");
@@ -95,7 +98,7 @@ namespace NxlogAzureForwarder
             }
             catch (Exception e)
             {
-                Trace.TraceError(e.ToString());
+                if (_debug) Trace.TraceError(e.ToString());
                 Reply(context.Response, string.Format("Error: {0}", e.Message), statusCode: 500);
             }
             finally
@@ -138,7 +141,11 @@ namespace NxlogAzureForwarder
                         var record = _parser.Parse(DateTime.UtcNow, _hostname, line);
                         success = _uploader.Upload(record);
                     }
-                    catch { }
+                    catch (Exception e)
+                    {
+                        if (_debug) Trace.TraceError(e.ToString());
+                    }
+                    Interlocked.Increment(ref _total);
                     if (!success)
                     {
                         Interlocked.Increment(ref _statistics.UploadFailureCount);
@@ -146,6 +153,11 @@ namespace NxlogAzureForwarder
                     }
                     Interlocked.Increment(ref _statistics.UploadSuccessCount);
                 }
+            }
+
+            if (_debug && _total % 250 == 0)
+            {
+                Trace.TraceInformation(JsonConvert.SerializeObject(_statistics));
             }
             return true;
         }
